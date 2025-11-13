@@ -12,7 +12,7 @@ class Webhook extends Controller
         $data = $this->request->getGet();
 
         // (Opcional) Guarda en logs para ver qué datos llegan
-        log_message('info', 'Webhook GET recibido: ' . json_encode($data));
+        log_message('info', 'Webhook GET recibido correctamente: ' . json_encode($data));
 
         // Si quieres devolver una respuesta simple
         return $this->response->setJSON([
