@@ -1,0 +1,13 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Bloquear acceso directo a carpetas sensibles
+    RewriteCond %{REQUEST_URI} ^/(app|system|writable)/ [NC]
+    RewriteRule ^ - [F,L]
+
+    # Reescribir todo a index.php (si no es archivo o carpeta real)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
