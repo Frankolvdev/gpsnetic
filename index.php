@@ -19,6 +19,27 @@ if (!is_file($pathsPath)) {
 
 /*
  *---------------------------------------------------------------
+ * FIX PARA NGINX SIN TOCAR CONFIGURACIÓN
+ *---------------------------------------------------------------
+ * Nginx NO pasa PATH_INFO por defecto.
+ * CodeIgniter necesita PATH_INFO para rutas como /webhook.
+ * Este fix reconstruye PATH_INFO basándose en REQUEST_URI.
+ */
+if (!isset($_SERVER['PATH_INFO']) || empty($_SERVER['PATH_INFO'])) {
+    $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+
+    // Quitar la carpeta base del proyecto si existe
+    $baseFolder = '/gpsnetic_notifications';
+    if (strpos($uri, $baseFolder) === 0) {
+        $uri = substr($uri, strlen($baseFolder));
+    }
+
+    // Evitar que quede vacío → poner "/"
+    $_SERVER['PATH_INFO'] = $uri ?: '/';
+}
+
+/*
+ *---------------------------------------------------------------
  * BOOTSTRAP
  *---------------------------------------------------------------
  */
@@ -26,7 +47,6 @@ chdir(__DIR__); // Asegurarse de estar en la raíz
 
 require $pathsPath;
 $paths = new Config\Paths();
-
 
 // Cargar bootstrap del sistema
 $app = require rtrim($paths->systemDirectory, '/ ') . '/bootstrap.php';
