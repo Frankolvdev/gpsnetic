@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use CodeIgniter\Controller;
+use App\Models\UserFcmTokenModel;
 
 class Webhook extends Controller
 {
@@ -144,4 +145,66 @@ class Webhook extends Controller
 
         return $response['access_token'] ?? null;
     }
+
+
+   
+
+public function registerFcm()
+{
+    $request = $this->request;
+
+    $username = trim($request->getPost('username'));
+    $fcmToken = trim($request->getPost('fcm_token'));
+    $platform = strtolower(trim($request->getPost('platform'))); // android | ios
+
+    if (!$username || !$fcmToken || !in_array($platform, ['android', 'ios'])) {
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'Parámetros inválidos'
+        ])->setStatusCode(400);
+    }
+
+    $model = new UserFcmTokenModel();
+
+    $existing = $model->where('username', $username)->first();
+
+    $now = date('Y-m-d H:i:s');
+
+    if ($existing) {
+        // 🔁 ACTUALIZA SOLO EL TOKEN CORRESPONDIENTE
+        $updateData = [
+            'updated_at' => $now
+        ];
+
+        if ($platform === 'android') {
+            $updateData['fcm_token_android'] = $fcmToken;
+        } else {
+            $updateData['fcm_token_ios'] = $fcmToken;
+        }
+
+        $model->update($existing['id'], $updateData);
+
+        return $this->response->setJSON([
+            'status' => 'ok',
+            'message' => 'Token actualizado'
+        ]);
+    }
+
+    // 🆕 NUEVO USUARIO
+    $insertData = [
+        'username' => $username,
+        'fcm_token_android' => $platform === 'android' ? $fcmToken : null,
+        'fcm_token_ios'     => $platform === 'ios' ? $fcmToken : null,
+        'created_at' => $now,
+        'updated_at' => $now
+    ];
+
+    $model->insert($insertData);
+
+    return $this->response->setJSON([
+        'status' => 'ok',
+        'message' => 'Token registrado'
+    ]);
+}
+
 }
