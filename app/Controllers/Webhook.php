@@ -151,67 +151,82 @@ class Webhook extends Controller
 
 public function registerFcm()
 {
-    // 🔥 LEER JSON CORRECTAMENTE
-    $data = $this->request->getJSON(true);
+    try {
 
-    if (!$data) {
-        return $this->response->setJSON([
-            'status' => 'error',
-            'message' => 'JSON inválido o vacío'
-        ])->setStatusCode(400);
-    }
+        // 🔥 LEER JSON
+        $data = $this->request->getJSON(true);
 
-    $username = trim($data['username'] ?? '');
-    $fcmToken = trim($data['fcm_token'] ?? '');
-    $platform = strtolower(trim($data['platform'] ?? ''));
+        if (!$data || !is_array($data)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'JSON inválido o vacío',
+                'debug' => $data
+            ])->setStatusCode(400);
+        }
 
-    if (!$username || !$fcmToken || !in_array($platform, ['android', 'ios'])) {
-        return $this->response->setJSON([
-            'status' => 'error',
-            'message' => 'Parámetros inválidos'
-        ])->setStatusCode(400);
-    }
+        $username = trim($data['username'] ?? '');
+        $fcmToken = trim($data['fcm_token'] ?? '');
+        $platform = strtolower(trim($data['platform'] ?? ''));
 
-    $model = new UserFcmTokenModel();
-    $existing = $model->where('username', $username)->first();
+        if (!$username || !$fcmToken || !in_array($platform, ['android', 'ios'])) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Parámetros inválidos',
+                'received' => $data
+            ])->setStatusCode(400);
+        }
 
-    $now = date('Y-m-d H:i:s');
+        $model = new UserFcmTokenModel();
+        $existing = $model->where('username', $username)->first();
 
-    if ($existing) {
-        // 🔁 ACTUALIZAR TOKEN
-        $updateData = [
+        $now = date('Y-m-d H:i:s');
+
+        if ($existing) {
+            $updateData = ['updated_at' => $now];
+
+            if ($platform === 'android') {
+                $updateData['fcm_token_android'] = $fcmToken;
+            } else {
+                $updateData['fcm_token_ios'] = $fcmToken;
+            }
+
+            $model->update($existing['id'], $updateData);
+
+            return $this->response->setJSON([
+                'status' => 'ok',
+                'message' => 'Token actualizado'
+            ]);
+        }
+
+        $insertData = [
+            'username' => $username,
+            'fcm_token_android' => $platform === 'android' ? $fcmToken : null,
+            'fcm_token_ios'     => $platform === 'ios' ? $fcmToken : null,
+            'created_at' => $now,
             'updated_at' => $now
         ];
 
-        if ($platform === 'android') {
-            $updateData['fcm_token_android'] = $fcmToken;
-        } else {
-            $updateData['fcm_token_ios'] = $fcmToken;
-        }
-
-        $model->update($existing['id'], $updateData);
+        $model->insert($insertData);
 
         return $this->response->setJSON([
             'status' => 'ok',
-            'message' => 'Token actualizado'
+            'message' => 'Token registrado'
         ]);
+
+    } catch (\Throwable $e) {
+
+        // 🧨 LOG DEL ERROR
+        log_message('error', 'registerFcm ERROR: ' . $e->getMessage());
+        log_message('error', $e->getTraceAsString());
+
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'Error interno del servidor',
+            'exception' => $e->getMessage(), // 👈 SOLO EN DEV
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ])->setStatusCode(500);
     }
-
-    // 🆕 INSERTAR NUEVO
-    $insertData = [
-        'username' => $username,
-        'fcm_token_android' => $platform === 'android' ? $fcmToken : null,
-        'fcm_token_ios'     => $platform === 'ios' ? $fcmToken : null,
-        'created_at' => $now,
-        'updated_at' => $now
-    ];
-
-    $model->insert($insertData);
-
-    return $this->response->setJSON([
-        'status' => 'ok',
-        'message' => 'Token registrado'
-    ]);
 }
 
 
