@@ -32,7 +32,7 @@ $routes->setAutoRoute(true);
 // route since we don't have to scan directories.
 $routes->get('/', 'Home::index');
 $routes->get('webhook', 'Webhook::index');
-
+$routes->get('test-fcm', 'Webhook::testFcm');
 /**
  * --------------------------------------------------------------------
  * Additional Routing
