@@ -33,7 +33,7 @@ $routes->setAutoRoute(true);
 $routes->get('/', 'Home::index');
 $routes->get('webhook', 'Webhook::index');
 $routes->get('test-fcm', 'Webhook::testFcm');
-$routes->get('register-fcm', 'Webhook::registerFcm');
+$routes->post('register-fcm', 'Webhook::registerFcm');
 /**
  * --------------------------------------------------------------------
  * Additional Routing
