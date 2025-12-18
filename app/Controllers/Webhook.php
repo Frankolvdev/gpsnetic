@@ -151,11 +151,19 @@ class Webhook extends Controller
 
 public function registerFcm()
 {
-    $request = $this->request;
+    // 🔥 LEER JSON CORRECTAMENTE
+    $data = $this->request->getJSON(true);
 
-    $username = trim($request->getPost('username'));
-    $fcmToken = trim($request->getPost('fcm_token'));
-    $platform = strtolower(trim($request->getPost('platform'))); // android | ios
+    if (!$data) {
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'JSON inválido o vacío'
+        ])->setStatusCode(400);
+    }
+
+    $username = trim($data['username'] ?? '');
+    $fcmToken = trim($data['fcm_token'] ?? '');
+    $platform = strtolower(trim($data['platform'] ?? ''));
 
     if (!$username || !$fcmToken || !in_array($platform, ['android', 'ios'])) {
         return $this->response->setJSON([
@@ -165,13 +173,12 @@ public function registerFcm()
     }
 
     $model = new UserFcmTokenModel();
-
     $existing = $model->where('username', $username)->first();
 
     $now = date('Y-m-d H:i:s');
 
     if ($existing) {
-        // 🔁 ACTUALIZA SOLO EL TOKEN CORRESPONDIENTE
+        // 🔁 ACTUALIZAR TOKEN
         $updateData = [
             'updated_at' => $now
         ];
@@ -190,7 +197,7 @@ public function registerFcm()
         ]);
     }
 
-    // 🆕 NUEVO USUARIO
+    // 🆕 INSERTAR NUEVO
     $insertData = [
         'username' => $username,
         'fcm_token_android' => $platform === 'android' ? $fcmToken : null,
@@ -206,5 +213,6 @@ public function registerFcm()
         'message' => 'Token registrado'
     ]);
 }
+
 
 }
