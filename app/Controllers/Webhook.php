@@ -7,18 +7,125 @@ use App\Models\UserFcmTokenModel;
 
 class Webhook extends Controller
 {
-    public function index()
-    {
-        // Captura todos los parámetros que vengan por GET
-        $data = $this->request->getGet();
+   public function index()
+{
+    // 🔹 Captura parámetros GET
+    $data = $this->request->getGet();
+    log_message('info', 'Webhook GET recibido correctamente: ' . json_encode($data));
 
-        log_message('info', 'Webhook GET recibido correctamente: ' . json_encode($data));
+    // 🔹 Validar datos mínimos
+    $username = trim($data['username'] ?? '');
+    $title    = trim($data['name'] ?? '');
+    $body     = trim($data['desc'] ?? '');
 
+    if ($username === '' || $title === '' || $body === '') {
         return $this->response->setJSON([
-            'status' => 'ok',
-            'received' => $data
-        ]);
+            'status' => 'error',
+            'message' => 'Parámetros incompletos'
+        ])->setStatusCode(400);
     }
+
+    // 🔹 Buscar usuario por username
+    $model = new UserFcmTokenModel();
+    $user  = $model->where('username', $username)->first();
+
+    if (!$user) {
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'Usuario no encontrado'
+        ])->setStatusCode(404);
+    }
+
+    // 🔹 Obtener tokens válidos (no null, no vacío)
+    $tokens = [];
+
+    if (!empty($user['fcm_token_android'])) {
+        $tokens['android'] = $user['fcm_token_android'];
+    }
+
+    if (!empty($user['fcm_token_ios'])) {
+        $tokens['ios'] = $user['fcm_token_ios'];
+    }
+
+    if (empty($tokens)) {
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'El usuario no tiene tokens FCM válidos'
+        ])->setStatusCode(400);
+    }
+
+    // 🔹 Firebase config
+    $projectId   = 'gpsnetic-19c12';
+    $accessToken = $this->getFirebaseAccessToken();
+
+    if (!$accessToken) {
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'No se pudo obtener access token'
+        ])->setStatusCode(500);
+    }
+
+    $url = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
+    $responses = [];
+
+    // 🔹 Enviar notificación a cada plataforma
+    foreach ($tokens as $platform => $token) {
+
+        $payload = [
+            'message' => [
+                'token' => $token,
+                'notification' => [
+                    'title' => $title,
+                    'body'  => $body
+                ],
+                'android' => [
+                    'notification' => [
+                        'channel_id' => 'default_channel'
+                    ]
+                ]
+            ]
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $accessToken,
+                'Content-Type: application/json'
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POSTFIELDS => json_encode($payload),
+        ]);
+
+        $response  = curl_exec($ch);
+        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $responses[$platform] = [
+            'http_code' => $httpCode,
+            'response'  => json_decode($response, true)
+        ];
+
+        // ✅ LOG SOLO SI ES EXITOSO
+        if ($httpCode === 200) {
+            log_message(
+                'info',
+                'FCM enviado correctamente: ' . json_encode([
+                    'username' => $username,
+                    'platform' => $platform,
+                    'title' => $title,
+                    'body' => $body
+                ])
+            );
+        }
+    }
+
+    return $this->response->setJSON([
+        'status' => 'ok',
+        'notifications' => $responses
+    ]);
+}
+
 
     // ─────────────────────────────────────────────
     // 🔔 ENVÍO DE PUSH NOTIFICATION (FCM v1)
